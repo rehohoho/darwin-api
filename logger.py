@@ -48,7 +48,7 @@ def logger_init(path):
 
 def single_thread_logger(path):
     file_handler = logging.FileHandler(path, mode="w")
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.INFO)
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
     

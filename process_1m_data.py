@@ -105,12 +105,7 @@ class DWX_TICK_DATA_IO():
                                         _hour='',
                                         _convert_epochs=True,
                                         _check_integrity=False,
-                                        _calc_spread=False,
-                                        _reindex=['ask_price','bid_price'],
-                                        _precision='tick',
-                                        _na_handling=None,
-                                        _daily_start=22,
-                                        _symbol_digits=5):
+                                        _reindex=['ask_price','bid_price']):
         
         """
         See http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html
@@ -145,10 +140,6 @@ class DWX_TICK_DATA_IO():
         
         # must ensure that timestamp is ascending and have no gaps before fillna
         _df = _asks.merge(_bids, how='outer', left_index=True, right_index=True, copy=False).fillna(method='ffill').dropna()
-
-        # Calculate spread?
-        if _calc_spread:
-            _df['spread'] = abs(np.diff(_df[['ask_price','bid_price']]))
         
         # Convert timestamps?
         if _convert_epochs:
@@ -163,8 +154,19 @@ class DWX_TICK_DATA_IO():
             
             logging.info('\n\nChecking data integrity..')
             self._integrity_check_(_df, _symbol)
+        
+        return _df
 
-        # Resample?
+    ##########################################################################
+
+    @staticmethod
+    def _get_resampled_data(_df,
+                            _precision='tick',
+                            _na_handling=None,
+                            _calc_spread=False,
+                            _daily_start=22,
+                            _symbol_digits=5):
+
         if _precision != 'tick':
             _df['mid_price'] = round((_df.ask_price + _df.bid_price) / 2, _symbol_digits)
             
@@ -178,6 +180,7 @@ class DWX_TICK_DATA_IO():
             _df_volume = _resampled.count().rename('volume') #get volume of resampled bins (number of tick change)
 
             if _calc_spread:
+                _df['spread'] = abs(np.diff(_df[['ask_price','bid_price']]))
                 _df_spread = _resampling_fn(_df.spread).mean() #get mean of resampled bins
                 _df = _df_ohlc.merge(_df_spread, how='outer', left_index=True, right_index=True, copy=False)
 
@@ -212,26 +215,12 @@ class DWX_TICK_DATA_IO():
             _df.groupby(_df.index.hour).spread.mean().plot(
                     xticks=range(0,24), 
                     title='Average Spread by Hour (UTC)')
-            plt.savefig(os.path.join(config.MINUTE_DATA_PATH, _symbol + '.png'))
+            plt.savefig(os.path.join(self._path, _symbol + '.png'))
             
     ##########################################################################
 
 
-def process_tick_data(asset, io, na_handling=None):
-    _df = _io._get_symbol_as_dataframe_(
-        _symbol=asset,
-        _date="",
-        _convert_epochs=True,
-        _calc_spread=True,
-        _check_integrity=True, # requires df to have bid, ask, spread
-        _na_handling=na_handling,
-        _reindex=["ask_price", "bid_price", "spread"],
-        _precision="min"
-    )
-
-    if _df is None: return
-    
-    csv_path_name = os.path.join(config.MINUTE_DATA_PATH, asset) + ".csv"
+def append_or_create_csv(_df, csv_path_name):
     dir_name = os.path.dirname(csv_path_name)
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
@@ -248,12 +237,45 @@ def process_tick_data(asset, io, na_handling=None):
         _df.to_csv(csv_path_name)
 
 
+def write_resampled_data(_df, precision, path, calc_spread, na_handling):
+    _df = DWX_TICK_DATA_IO._get_resampled_data(
+        _df,
+        _precision=precision,
+        _na_handling=na_handling,
+        _calc_spread=calc_spread
+    )
+    append_or_create_csv(_df, os.path.join(path, asset) + ".csv")    
+
+
 if __name__ == "__main__":
 
     single_thread_logger(os.path.join(config.TICK_DATA_PATH, 'process_1m_data.log'))
-    na_handling = lambda x: x.fillna(method='ffill').dropna()
+    # na_handling = lambda x: x.fillna(method='ffill').dropna()
+    na_handling = lambda x: x.dropna()
     _io = DWX_TICK_DATA_IO(_path=config.TICK_DATA_PATH,
                            _extension=".csv")
     
     for asset in config.G8_TICKERS:
-        process_tick_data(asset, _io, na_handling)
+        _df = _io._get_symbol_as_dataframe_(
+            _symbol=asset,
+            _date="",
+            _hour="",
+            _convert_epochs=True,
+            _check_integrity=True, # requires df to have bid, ask, spread
+            _reindex=["ask_price", "bid_price", "spread"]
+        )
+
+        if _df is None: continue
+        write_resampled_data(
+            _df, 
+            precision='min', 
+            path=config.MINUTE_DATA_PATH, 
+            calc_spread=True,
+            na_handling=na_handling)
+        
+        write_resampled_data(
+            _df, 
+            precision='H', 
+            path=config.HOUR_DATA_PATH, 
+            calc_spread=True,
+            na_handling=na_handling)
