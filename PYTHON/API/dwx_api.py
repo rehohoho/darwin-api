@@ -15,17 +15,17 @@
     https://opensource.org/licenses/BSD-3-Clause
 """
 import os, requests
-os.chdir('<INSERT-PATH-TO-PROJECT-DIR-HERE>')
 
 from AUTH.dwx_oauth2_p3 import DWX_OAuth2
 from MINIONS.dwx_file_io import load_config
+from .config import PYTHON_API_DIR
 
 class DWX_API(object):
     
     def __init__(self, 
                  _api_url='https://api.darwinex.com',
                  _api_name='darwininfo',
-                 _version=1.5,
+                 _version=2.0,
                  _demo=False):
         
         # OAuth2 object for access/refresh token retrieval
@@ -34,14 +34,15 @@ class DWX_API(object):
         else:
             _creds_filename = 'CONFIG/creds.cfg'
             
-        self._auth = DWX_OAuth2(load_config(_creds_filename))
+        # self._auth = DWX_OAuth2(load_config(_creds_filename))
         
         # Construct main production url for tagging endpoints
         self._url = '{}/{}/{}'.format(_api_url, _api_name, _version)
         
         # Construct authorization header for all requests
-        self._auth_headers = {'Authorization': 'Bearer {}'.format(self._auth._data['access_token'])}
-        
+        #self._auth_headers = {'Authorization': 'Bearer {}'.format(self._auth._data['access_token'])}
+        self._auth_headers = {'Authorization': 'Bearer {}'.format('e44f2d67-227b-3720-849a-d382e201ab1f')}
+    
         # Construct headers for POST requests
         self._post_headers = {**self._auth_headers,
                               **{'Content-type':'application/json',
@@ -61,6 +62,8 @@ class DWX_API(object):
         try:
             
             if _type == 'GET':
+                print(self._auth_headers)
+                print(self._url + _endpoint)
                 _ret = requests.get(self._url + _endpoint,
                                     headers=self._auth_headers,
                                     verify=True)

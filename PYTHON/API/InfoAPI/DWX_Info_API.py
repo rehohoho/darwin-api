@@ -16,10 +16,11 @@
 """
 
 import os, time
-os.chdir('<INSERT-PATH-TO-PROJECT-DIR-HERE>')
 
 from MINIONS.dwx_graphics_helpers import DWX_Graphics_Helpers
 from API.dwx_api import DWX_API
+from ..config import PARENT_API_DIR
+os.chdir(PARENT_API_DIR)
 
 import pandas as pd
 import numpy as np
