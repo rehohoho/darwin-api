@@ -5,7 +5,7 @@ import time
 import random
 
 
-def f(i):
+def test_f(i):
     time.sleep(random.uniform(.01, .05))
     logging.info('function called with {} in worker thread.'.format(i))
     time.sleep(random.uniform(.01, .05))
@@ -44,19 +44,33 @@ def logger_init(path):
     logger.addHandler(shandler)
 
     return ql, q
+    
+
+def single_thread_logger(path):
+    file_handler = logging.FileHandler(path, mode="w")
+    file_handler.setLevel(logging.DEBUG)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter("%(levelname)s: %(asctime)s - %(message)s")
+    stream_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+    return logger
 
 
-def main():
+# TEST
+if __name__ == '__main__':
     q_listener, q = logger_init('test.log')
 
     logging.info('hello from main thread')
     pool = multiprocessing.Pool(4, worker_init, [q])
-    for result in pool.map(f, range(10)):
+    for result in pool.map(test_f, range(10)):
         pass
     pool.close()
     pool.join()
     q_listener.stop()
-
-
-if __name__ == '__main__':
-    main()

@@ -24,9 +24,12 @@ import matplotlib.pyplot as plt
 
 import config
 
+import logging
+from logger import single_thread_logger
 
 pd.set_option('display.max_columns', 500)
 pd.set_option('display.width', 1000)
+
 
 class DWX_TICK_DATA_IO():
     
@@ -48,7 +51,7 @@ class DWX_TICK_DATA_IO():
     def _find_symbol_files_(self, _symbol,
                                   _date='',
                                   _hour=''):
-        print(_symbol, self._extension)
+        logging.info(F'Finding symbol files for \'{_symbol}/*{self._extension}\'')
         
         if _date == '':
             _fs = [filename.name for filename in Path(self._path).glob('{}/*{}'
@@ -66,15 +69,13 @@ class DWX_TICK_DATA_IO():
                                             and _hour in filename.name]
     
         if len(_fs) > 0:
-            print("%s files found" % len(_fs))
+            logging.info(F'{len(_fs)} files found.')
             
             return (['{}/{}/{}'.format(self._path, _symbol, _f) for _f in _fs if 'BID' in _f], 
                 ['{}/{}/{}'.format(self._path, _symbol, _f) for _f in _fs if 'ASK' in _f])
             
         else:
-            print('[WARNING] No files found for {} - {} - {}'
-                  .format(_symbol, _date, _hour))
-            
+            logging.warning(F'No files found for {_symbol} - {_date} - {_hour}')
             return None, None
     
     ##########################################################################
@@ -115,12 +116,13 @@ class DWX_TICK_DATA_IO():
         See http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html
         for .resample() rule / frequency strings.        
         """
-        
-        print('[INFO] Finding symbol files.. please wait..')
-        
+
         _bid_files, _ask_files = self._find_symbol_files_(_symbol,_date,_hour)
-        
-        print('[INFO] Processing BID ({}) / ASK ({}) files.. please wait..'.format(len(_bid_files), len(_ask_files)))
+        if _bid_files is None or _ask_files is None:
+            logging.warning(F'No files found for \'{_symbol}/*{self._extension}\'')
+            return
+
+        logging.info(F'Processing BID ({len(_bid_files)}) / ASK ({len(_ask_files)}) files...')
         
         # BIDS
         if len(_bid_files) != 0:
@@ -159,8 +161,8 @@ class DWX_TICK_DATA_IO():
         # Check data integrity?
         if _check_integrity:
             
-            print('\n\n[INFO] Checking data integrity..')
-            self._integrity_check_(_df)
+            logging.info('\n\nChecking data integrity..')
+            self._integrity_check_(_df, _symbol)
 
         # Resample?
         if _precision != 'tick':
@@ -188,40 +190,34 @@ class DWX_TICK_DATA_IO():
     
     ##########################################################################
     
-    def _integrity_check_(self, _df):
+    def _integrity_check_(self, _df, _symbol):
         """ Requires dataframe to have bid, ask, spread
         """
 
         if isinstance(_df, pd.DataFrame) == False:
             
-            print('[ERROR] Input must be a Pandas DataFrame')
+            logging.warning('[ERROR] Input must be a Pandas DataFrame')
             
         else:
             
             _diff = _df.index.to_series().diff()
             
-            print('\n[TEST #1] Data Frequency Statistics\n--')
-            print(_diff.describe())
+            logging.info('\n[TEST #1] Data Frequency Statistics\n--')
+            logging.info(_diff.describe())
             
-            print('\n[TEST #2] Mode of Gap Distribution\n--')
-            print(_diff.value_counts().head(1))
+            logging.info('\n[TEST #2] Mode of Gap Distribution\n--')
+            logging.info(_diff.value_counts().head(1))
             
-            print('\n[TEST #3] Hourly Spread Distribution. This requires more than one hour of data.\n--')
+            logging.info('\n[TEST #3] Hourly Spread Distribution. This requires more than one hour of data.\n--')
             _df.groupby(_df.index.hour).spread.mean().plot(
                     xticks=range(0,24), 
                     title='Average Spread by Hour (UTC)')
-            plt.show()
+            plt.savefig(os.path.join(config.MINUTE_DATA_PATH, _symbol + '.png'))
             
     ##########################################################################
 
-if __name__ == "__main__":
 
-    asset = "AUDUSD"
-    na_handling = lambda x: x.fillna(method='ffill').dropna()
-
-    _io = DWX_TICK_DATA_IO(_path=config.TICK_DATA_PATH,
-                           _extension=".csv")
-    
+def process_tick_data(asset, io, na_handling=None):
     _df = _io._get_symbol_as_dataframe_(
         _symbol=asset,
         _date="",
@@ -232,6 +228,8 @@ if __name__ == "__main__":
         _reindex=["ask_price", "bid_price", "spread"],
         _precision="min"
     )
+
+    if _df is None: return
     
     csv_path_name = os.path.join(config.MINUTE_DATA_PATH, asset) + ".csv"
     dir_name = os.path.dirname(csv_path_name)
@@ -239,10 +237,23 @@ if __name__ == "__main__":
         os.makedirs(dir_name)
     
     if os.path.exists(csv_path_name):
+        logging.info(F"{csv_path_name} exists. Appending to old data.")
         old_data = pd.read_csv(csv_path_name, index_col="timestamp")
         combined_data = pd.concat([old_data, _df], join="inner") # intersection of columns
         combined_data.index = pd.to_datetime(combined_data.index, utc=True)
         combined_data = combined_data[~combined_data.index.duplicated(keep='first')]
         combined_data.to_csv(csv_path_name)
-    else:        
+    else:
+        logging.info(F"{csv_path_name} does not exist. Creating new file.")
         _df.to_csv(csv_path_name)
+
+
+if __name__ == "__main__":
+
+    single_thread_logger(os.path.join(config.TICK_DATA_PATH, 'process_1m_data.log'))
+    na_handling = lambda x: x.fillna(method='ffill').dropna()
+    _io = DWX_TICK_DATA_IO(_path=config.TICK_DATA_PATH,
+                           _extension=".csv")
+    
+    for asset in config.G8_TICKERS:
+        process_tick_data(asset, _io, na_handling)

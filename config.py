@@ -3,8 +3,8 @@ DWX_FTP_USER = 'ShinyPants'
 DWX_FTP_PASS = 'B7A5jZlyaKn3wo'
 DWX_FTP_HOSTNAME = 'tickdata.darwinex.com'
 TICK_DATA_PATH = 'D:/data/dwx/tick'
-MINUTE_DATA_PATH = 'D:/data/dwx/minute'
-HOUR_DATA_PATH = 'D:/data/dwx/hour'
+MINUTE_DATA_PATH = 'D:/data/dwx/minute_csv'
+HOUR_DATA_PATH = 'D:/data/dwx/hour_csv'
 
 DAWRINEX_TICKERS = ['AUDCHF', 'AUDJPY', 'AUDNZD', 'AUDUSD', 'AUS200', 'CADCHF', 'CADJPY', 'CHFJPY', 
     'EURAUD', 'EURCAD', 'EURCHF', 'EURGBP', 'EURJPY', 'EURMXN', 'EURNOK', 'EURNZD', 'EURSEK', 'EURSGD', 'EURTRY', 'EURUSD',
