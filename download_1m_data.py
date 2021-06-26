@@ -38,7 +38,7 @@ from io import BytesIO
 import pandas as pd
 import gzip
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 import os
 import config
 import multiprocessing
@@ -137,12 +137,26 @@ class DWX_Tick_Data():
     #########################################################################
 
 
+def check_if_not_trading_day(date):
+    """
+    Forex trading stops at Friday 2159 and starts Sunday 2200
+    Adds one hour tolerance in case
+    """
+    return date.weekday() == 4 and date.hour > 22 or \
+        date.weekday() == 5 or \
+        date.weekday() == 6 and date.hour < 21
+
+
 def download_tick_data(start_date, end_date, delta, hours, asset):
     
     for i in range(delta.days + 1):
-        date = start_date + timedelta(days=i)
         
         for hour in hours:
+            date = start_date + timedelta(days=i, hours=hour)
+            if check_if_not_trading_day(date):
+                continue
+            date = date.date()
+            
             ask_path_name = os.path.join(config.TICK_DATA_PATH, asset, 
                 '{}-{}-{}-{}.csv'.format(asset, "ASK", date, hour)
             )
@@ -177,8 +191,8 @@ def download_tick_data(start_date, end_date, delta, hours, asset):
 
 if __name__ == "__main__":
     
-    start_date = date(2020, 12, 1)
-    end_date = date(2020, 12, 25)
+    start_date = datetime(2021, 5, 21)
+    end_date = datetime(2021, 6, 21)
     delta = end_date - start_date
     hours = range(24)
     num_workers = 4
