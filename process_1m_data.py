@@ -228,9 +228,11 @@ def append_or_create_csv(_df, csv_path_name):
     if os.path.exists(csv_path_name):
         logging.info(F"{csv_path_name} exists. Appending to old data.")
         old_data = pd.read_csv(csv_path_name, index_col="timestamp")
+        logging.info(F"Number of lines before appending {len(old_data)}")
         combined_data = pd.concat([old_data, _df], join="inner") # intersection of columns
         combined_data.index = pd.to_datetime(combined_data.index, utc=True)
         combined_data = combined_data[~combined_data.index.duplicated(keep='first')]
+        logging.info(F"Number of lines after appending {len(combined_data)}")
         combined_data.to_csv(csv_path_name)
     else:
         logging.info(F"{csv_path_name} does not exist. Creating new file.")
@@ -256,26 +258,28 @@ if __name__ == "__main__":
                            _extension=".csv")
     
     for asset in config.G8_TICKERS:
-        _df = _io._get_symbol_as_dataframe_(
-            _symbol=asset,
-            _date="",
-            _hour="",
-            _convert_epochs=True,
-            _check_integrity=True, # requires df to have bid, ask, spread
-            _reindex=["ask_price", "bid_price", "spread"]
-        )
+        for month in range(5, 6):
+            _df = _io._get_symbol_as_dataframe_(
+                _symbol=asset,
+                _date="2021-%02d-"%month,
+                _hour="",
+                _convert_epochs=True,
+                _check_integrity=True, # requires df to have bid, ask, spread
+                _reindex=["ask_price", "bid_price", "spread"]
+            )
+            _df = _df[_df.index >= '2020-5-20'] # only start after 2020 december, inclusive
 
-        if _df is None: continue
-        write_resampled_data(
-            _df, 
-            precision='min', 
-            path=config.MINUTE_DATA_PATH, 
-            calc_spread=True,
-            na_handling=na_handling)
-        
-        write_resampled_data(
-            _df, 
-            precision='H', 
-            path=config.HOUR_DATA_PATH, 
-            calc_spread=True,
-            na_handling=na_handling)
+            if _df is None: continue
+            write_resampled_data(
+                _df, 
+                precision='min', 
+                path=config.MINUTE_DATA_PATH, 
+                calc_spread=True,
+                na_handling=na_handling)
+            
+            write_resampled_data(
+                _df, 
+                precision='H', 
+                path=config.HOUR_DATA_PATH, 
+                calc_spread=True,
+                na_handling=na_handling)
